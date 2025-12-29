@@ -8,12 +8,23 @@
   <h2 class="title">Shortcut Manager</h2>
   <p class="subtitle">Create, edit, and manage global keyboard shortcuts.</p>
 
+  <!-- NEW: Recommendation banner -->
+  <div class="recommendation-banner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="16" x2="12" y2="12"></line>
+      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+    </svg>
+    <span>💡 <strong>Tip:</strong> Use Alt or Ctrl+Alt combinations (e.g., Alt+G+O, Ctrl+Alt+N). Avoid Ctrl alone - it conflicts with Windows and IDEs (VS Code, IntelliJ, etc.). <strong>Important:</strong> Don't use same starting keys (Alt+G+O and Alt+G+H won't work together).</span>
+  </div>
+
   <!-- NEW: Welcome card for first-time users -->
   <div id="welcomeCard" class="card welcome-card" style="display:none">
     <h3 class="welcome-title">👋 Welcome to Shortcut Launcher!</h3>
     <p class="welcome-text">Get started by creating your first shortcut:</p>
     <ol class="welcome-steps">
       <li>Click <strong>Browse…</strong> to select an application or file</li>
+      <li>Or click <strong>Add URL/Command</strong> to enter a website or command</li>
       <li>Enter a key combination (e.g., <code>Ctrl+Shift+N</code>)</li>
       <li>Click <strong>Add</strong> to save your shortcut</li>
     </ol>
@@ -24,8 +35,10 @@
     <div class="field">
       <input type="text" id="combo" class="input" placeholder="Key combo (e.g., Ctrl+Shift+N or Alt+V+S)">
     </div>
+    <!-- Chord warning will be inserted here dynamically -->
     <div class="field selected">
-      <button id="browseBtn" class="btn outline small">Browse…</button>
+      <button id="browseBtn" class="btn outline small">📂 Browse…</button>
+      <button id="addUrlBtn" class="btn outline small">🌐 Add URL/Command</button>
       <span id="selectedActionLabel" class="pill action" style="display:none"></span>
     </div>
     <div class="actions">
@@ -33,6 +46,48 @@
       <button id="updateBtn" class="btn success" disabled>Update</button>
       <button id="cancelEditBtn" class="btn ghost" style="display:none">Cancel</button>
       <small id="editHint" class="muted" style="display:none"></small>
+    </div>
+  </div>
+
+  <!-- NEW: Modal for URL/Command input -->
+  <div id="urlModal" class="modal" style="display:none">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add URL or Command</h3>
+        <button class="modal-close" id="closeModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label class="label">Enter URL, command, or protocol:</label>
+          <input type="text" id="urlInput" class="input" placeholder="e.g., https://google.com or notepad" autofocus>
+        </div>
+        <div class="quick-links">
+          <p class="label">Quick add:</p>
+          <div class="quick-buttons">
+            <button class="btn-quick" data-url="https://www.google.com">Google</button>
+            <button class="btn-quick" data-url="https://mail.google.com">Gmail</button>
+            <button class="btn-quick" data-url="https://www.github.com">GitHub</button>
+            <button class="btn-quick" data-url="https://www.youtube.com">YouTube</button>
+            <button class="btn-quick" data-url="shell:AppsFolder\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App">WhatsApp</button>
+            <button class="btn-quick" data-url="ms-settings:">Settings</button>
+            <button class="btn-quick" data-url="calc">Calculator</button>
+            <button class="btn-quick" data-url="notepad">Notepad</button>
+          </div>
+        </div>
+        <div class="modal-hint">
+          <p><strong>Examples:</strong></p>
+          <ul>
+            <li><code>https://google.com</code> - Open website</li>
+            <li><code>notepad</code> or <code>calc</code> - Run command</li>
+            <li><code>ms-settings:</code> - Windows Settings</li>
+            <li><code>shell:AppsFolder\...</code> - Windows Store apps</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="confirmUrl" class="btn primary">Add</button>
+        <button id="cancelUrl" class="btn ghost">Cancel</button>
+      </div>
     </div>
   </div>
 

@@ -21,10 +21,19 @@ if (!gotLock) {
 const aliasMap = {
   notepad: 'notepad',
   google: 'https://www.google.com',
+  gmail: 'https://mail.google.com',
+  github: 'https://www.github.com',
+  youtube: 'https://www.youtube.com',
   settings: 'ms-settings:',
   chrome: 'chrome',
   edge: 'msedge',
-  explorer: 'explorer'
+  explorer: 'explorer',
+  calc: 'calc',
+  calculator: 'calc',
+  // Common Windows Store apps
+  whatsapp: 'shell:AppsFolder\\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App',
+  spotify: 'shell:AppsFolder\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify',
+  netflix: 'shell:AppsFolder\\4DF9E0F8.Netflix_mcm4njqhnhss8!App'
 }
 
 // REMOVED: Built-in shortcuts to avoid personal preferences

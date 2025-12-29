@@ -82,7 +82,21 @@ function createWindow() {
   })
 }
 
-// ----------------- Launch Apps Safely -----------------
+// Cache for resolved paths to avoid repeated fs.existsSync calls
+const pathCache = new Map()
+const CACHE_TTL = 60000 // 1 minute
+
+function getCachedPath(target) {
+  const cached = pathCache.get(target)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.exists
+  }
+  const exists = fs.existsSync(target)
+  pathCache.set(target, { exists, timestamp: Date.now() })
+  return exists
+}
+
+// ----------------- Launch Apps Safely (OPTIMIZED) -----------------
 function runAction(action) {
   try {
     // NEW: support structured action with { kind, value } and simple fields
@@ -120,47 +134,117 @@ function runAction(action) {
        /^[a-zA-Z][\w+.-]*:/.test(target) &&
        !/^[a-zA-Z]:[\\/]/.test(target))
     const looksPath = forceKind === 'path' || (typeof target === 'string' && /[\\\/]/.test(target))
-    const exists = looksPath ? fs.existsSync(target) : false
+    const exists = looksPath ? getCachedPath(target) : false
     const ext = exists ? path.extname(target).toLowerCase() : ''
 
-    const launchWithCmd = (arg, quote = true) => {
-      const t = quote ? `"${arg}"` : arg
-      const child = spawn('cmd.exe', ['/c', 'start', '""', t], {
-        windowsVerbatimArguments: true,
-        detached: true,
-        stdio: 'ignore'
+    // OPTIMIZED: Direct shell.openExternal for URLs (fastest)
+    if (isUrl) {
+      shell.openExternal(target).catch(err => {
+        console.error('URL launch error:', target, err)
+        if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
       })
-      child.on('error', (err) => {
-        console.error('Launch error:', arg, err)
-        if (mainWindow) mainWindow.webContents.send('action-error', { action: arg, error: err.message })
-      })
-      try { child.unref() } catch {}
+      return
     }
 
-    if (isUrl) { launchWithCmd(target, true); return }
-    if (isShell || isProtocol) { launchWithCmd(target, false); return }
+    // OPTIMIZED: Direct spawn for shell/protocol URIs
+    if (isShell || isProtocol) {
+      const child = spawn('cmd.exe', ['/c', 'start', '""', target], {
+        windowsVerbatimArguments: true,
+        detached: true,
+        stdio: 'ignore',
+        shell: false
+      })
+      child.on('error', (err) => {
+        console.error('Shell/Protocol launch error:', target, err)
+        if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+      })
+      child.unref()
+      return
+    }
+
+    // OPTIMIZED: Direct execution for .exe files (skip cmd.exe wrapper)
+    if (exists && ext === '.exe') {
+      const child = spawn(target, [], {
+        detached: true,
+        stdio: 'ignore',
+        shell: false
+      })
+      child.on('error', (err) => {
+        console.error('EXE launch error:', target, err)
+        if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+      })
+      child.unref()
+      return
+    }
+
+    // OPTIMIZED: Fast launch for other known file types
     if (exists) {
       switch (ext) {
-        case '.exe': case '.lnk': case '.url': case '.appref-ms': case '.bat': case '.cmd':
-          launchWithCmd(target, true); return
+        case '.lnk':
+        case '.url':
+        case '.appref-ms': {
+          const child = spawn('cmd.exe', ['/c', 'start', '""', `"${target}"`], {
+            windowsVerbatimArguments: true,
+            detached: true,
+            stdio: 'ignore',
+            shell: false
+          })
+          child.on('error', (err) => {
+            console.error('Shortcut launch error:', target, err)
+            if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+          })
+          child.unref()
+          return
+        }
+        case '.bat':
+        case '.cmd': {
+          const child = spawn(target, [], {
+            detached: true,
+            stdio: 'ignore',
+            shell: true
+          })
+          child.on('error', (err) => {
+            console.error('Batch launch error:', target, err)
+            if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+          })
+          child.unref()
+          return
+        }
         case '.ps1': {
-          const ps = spawn('powershell.exe', [
+          const child = spawn('powershell.exe', [
             '-NoProfile', '-ExecutionPolicy', 'Bypass',
-            '-Command', `Start-Process -FilePath '${String(target).replace(/'/g, "''")}'`
-          ], { detached: true, stdio: 'ignore' })
-          ps.on('error', (err) => {
+            '-WindowStyle', 'Hidden',
+            '-Command', `& '${String(target).replace(/'/g, "''")}'`
+          ], { detached: true, stdio: 'ignore', shell: false })
+          child.on('error', (err) => {
             console.error('PowerShell launch error:', target, err)
             if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
           })
-          try { ps.unref() } catch {}
+          child.unref()
           return
         }
-        default: launchWithCmd(target, true); return
+        default: {
+          // Other files - use shell.openPath (faster than cmd.exe)
+          shell.openPath(target).catch(err => {
+            console.error('File launch error:', target, err)
+            if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+          })
+          return
+        }
       }
     }
 
-    if (looksPath) { launchWithCmd(target, true); return }
-    launchWithCmd(String(target), false)
+    // Fallback: try as command or PATH lookup
+    const child = spawn(String(target), [], {
+      detached: true,
+      stdio: 'ignore',
+      shell: true
+    })
+    child.on('error', (err) => {
+      console.error('Command launch error:', target, err)
+      if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+    })
+    child.unref()
   } catch (e) {
     console.error('runAction error:', e)
     if (mainWindow) mainWindow.webContents.send('action-error', { action, error: e.message })
@@ -439,4 +523,7 @@ app.whenReady().then(() => {
 })
 
 // ----------------- Cleanup -----------------
-app.on('will-quit', () => globalShortcut.unregisterAll())
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
+  pathCache.clear() // Clear cache on exit
+})

@@ -149,30 +149,95 @@ function loadShortcuts() {
     const li = document.createElement('li')
     li.className = 'list-item'
 
-    const content = document.createElement('div')
-    content.className = 'item-content'
-    content.innerHTML = `<span class="pill combo">${item.combo}</span><span class="arrow">→</span><span class="pill action">${item.action}</span>`
+    const displayName = getActionDisplayName(item.action)
 
-    const actions = document.createElement('div')
-    actions.className = 'item-actions'
-
-    const editBtn = document.createElement('button')
-    editBtn.className = 'btn small outline'
-    editBtn.textContent = 'Edit'
-    editBtn.onclick = () => setModeEditing(index, item)
-
-    const delBtn = document.createElement('button')
-    delBtn.className = 'btn small danger'
-    delBtn.textContent = 'Delete'
-    delBtn.onclick = () => deleteShortcut(index)
-
-    actions.appendChild(editBtn)
-    actions.appendChild(delBtn)
-
-    li.appendChild(content)
-    li.appendChild(actions)
+    li.innerHTML = `
+      <div class="item-content">
+        <span class="pill combo">${item.combo}</span>
+        <span class="arrow">→</span>
+        <span class="pill action" title="${typeof item.action === 'object' ? JSON.stringify(item.action) : item.action}">${displayName}</span>
+      </div>
+      <div class="item-actions">
+        <button class="btn outline small edit-btn" data-index="${index}">Edit</button>
+        <button class="btn danger small delete-btn" data-index="${index}">Delete</button>
+      </div>
+    `
     shortcutList.appendChild(li)
   })
+
+  // Attach event listeners
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(e.target.dataset.index)
+      setModeEditing(idx, data[idx])
+    })
+  })
+
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(e.target.dataset.index)
+      deleteShortcut(idx)
+    })
+  })
+}
+
+// Extract a friendly display name from action
+function getActionDisplayName(action) {
+  if (!action) return 'Unknown'
+  
+  // Handle string actions (legacy or simple)
+  if (typeof action === 'string') {
+    // Check if it's a URL
+    if (/^https?:\/\//i.test(action)) {
+      try {
+        const url = new URL(action)
+        return url.hostname.replace(/^www\./, '')
+      } catch {
+        return action
+      }
+    }
+    // Extract filename from path
+    if (action.includes('\\') || action.includes('/')) {
+      return path.basename(action, path.extname(action))
+    }
+    return action
+  }
+
+  // Handle object actions with different fields
+  const value = action.value || action.target || action.action || action.alias || action.url || action.shell || action.protocol || action.path
+
+  if (!value) return 'Unknown'
+
+  const kind = (action.kind || action.type || '').toLowerCase()
+
+  // Handle URLs
+  if (kind === 'url' || /^https?:\/\//i.test(value)) {
+    try {
+      const url = new URL(value)
+      return url.hostname.replace(/^www\./, '')
+    } catch {
+      return value
+    }
+  }
+
+  // Handle shell commands and protocols
+  if (kind === 'shell' || kind === 'protocol') {
+    if (value.includes('WhatsApp')) return 'WhatsApp'
+    if (value.includes('ms-settings')) return 'Settings'
+    return value
+  }
+
+  // Handle aliases
+  if (kind === 'alias') {
+    return value.charAt(0).toUpperCase() + value.slice(1)
+  }
+
+  // Handle paths - extract just the filename
+  if (kind === 'path' || value.includes('\\') || value.includes('/')) {
+    return path.basename(value, path.extname(value))
+  }
+
+  return value
 }
 
 // Add (new only)

@@ -20,20 +20,15 @@ if (!gotLock) {
 // Alias commands for quick launch
 const aliasMap = {
   notepad: 'notepad',
-  // open Google directly in the default browser
   google: 'https://www.google.com',
-  whatsapp: 'shell:AppsFolder\\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App',
-  word: 'winword',
-  // NEW: Windows Settings
   settings: 'ms-settings:',
-  // NEW: convenience alias to launch Chrome if available in PATH
-  chrome: 'chrome'
+  chrome: 'chrome',
+  edge: 'msedge',
+  explorer: 'explorer'
 }
-// NEW: built-in shortcuts (skip if user defines same combo)
-const BUILT_IN_SHORTCUTS = [
-  { combo: 'Ctrl+Alt+W', action: { alias: 'whatsapp' } },
-  { combo: 'Ctrl+Alt+G', action: { alias: 'google' } }
-]
+
+// REMOVED: Built-in shortcuts to avoid personal preferences
+const BUILT_IN_SHORTCUTS = []
 
 // Ensure cache/userData are writable to fix "Unable to create cache"
 const appDataRoot = process.env.APPDATA || path.join(process.env.USERPROFILE || process.env.HOME || '', 'AppData', 'Roaming')
@@ -325,7 +320,10 @@ function registerBuiltInShortcuts(userShortcuts = []) {
 // NEW: apply both user and built-in shortcuts
 function applyShortcuts(shortcuts) {
   registerShortcuts(shortcuts)
-  registerBuiltInShortcuts(shortcuts)
+  // Only register built-ins if any exist
+  if (BUILT_IN_SHORTCUTS.length > 0) {
+    registerBuiltInShortcuts(shortcuts)
+  }
 }
 
 // ----------------- IPC -----------------
@@ -398,12 +396,8 @@ function ensureShortcutStoreFile() {
   try {
     const p = getShortcutPath()
     if (!fs.existsSync(p)) {
-      // Seed with examples so you can see and use the new "kind" field
-      const sample = [
-        { combo: 'Ctrl+G', action: { kind: 'url', value: 'https://google.com' } },
-        { combo: 'Ctrl+W', action: { kind: 'alias', value: 'whatsapp' } },
-        { combo: 'Ctrl+N', action: 'notepad' } // backwards compatible string
-      ]
+      // CLEAN: Start with empty shortcuts for customers
+      const sample = []
       fs.writeFileSync(p, JSON.stringify(sample, null, 2))
     } else {
       const raw = fs.readFileSync(p, 'utf8')
@@ -439,12 +433,13 @@ function watchShortcutFile() {
 // ----------------- About Dialog -----------------
 // Show a simple About dialog with version info
 function showAbout() {
-  const msg = `Shortcut Launcher\nVersion: ${app.getVersion()}\n\n© YOUR_COMPANY`
+  const msg = `Shortcut Launcher\nVersion: ${app.getVersion()}\n\nBoost your productivity with global keyboard shortcuts.\n\n© ${new Date().getFullYear()} Your Company Name`
   try {
     dialog.showMessageBox(mainWindow || null, {
       type: 'info',
       title: 'About Shortcut Launcher',
-      message: msg
+      message: msg,
+      buttons: ['OK']
     })
   } catch {}
 }

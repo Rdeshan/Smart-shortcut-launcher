@@ -13,6 +13,9 @@ const { ipcRenderer } = require('electron')
 const statusEl = document.getElementById('status')
 const browseBtn = document.getElementById('browseBtn')
 const selectedActionLabel = document.getElementById('selectedActionLabel')
+const welcomeCard = document.getElementById('welcomeCard')
+const dismissWelcome = document.getElementById('dismissWelcome')
+const emptyState = document.getElementById('emptyState')
 
 // Add missing state vars
 let editIndex = null
@@ -145,6 +148,21 @@ function loadShortcuts() {
     fs.writeFileSync(shortcutFile, JSON.stringify(data, null, 2))
     showMessage('Failed to read shortcuts. Reset to empty.', 'error')
   }
+
+  // NEW: Show welcome card on first launch
+  const hasSeenWelcome = localStorage.getItem('hasSeenWelcome')
+  if (!hasSeenWelcome && data.length === 0) {
+    welcomeCard.style.display = 'block'
+  }
+
+  // NEW: Show empty state if no shortcuts
+  if (data.length === 0) {
+    emptyState.style.display = 'flex'
+    return
+  } else {
+    emptyState.style.display = 'none'
+  }
+
   data.forEach((item, index) => {
     const li = document.createElement('li')
     li.className = 'list-item'
@@ -317,6 +335,12 @@ function deleteShortcut(index) {
 ipcRenderer.on('action-error', (_event, payload) => {
   const msg = payload?.action ? `Failed to launch: ${payload.action}` : 'Failed to launch selected app'
   showMessage(msg, 'error')
+})
+
+// NEW: Dismiss welcome card
+dismissWelcome?.addEventListener('click', () => {
+  welcomeCard.style.display = 'none'
+  localStorage.setItem('hasSeenWelcome', 'true')
 })
 
 // initial load

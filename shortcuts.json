@@ -1,0 +1,38 @@
+[
+  {
+    "combo": "Alt+N+O",
+    "action": "notepad"
+  },
+  {
+    "combo": "Alt+W+H",
+    "action": "whatsapp"
+  },
+  {
+    "combo": "Alt+W+O",
+    "action": "word"
+  },
+  {
+    "combo": "Alt+G+O",
+    "action": "chrome"
+  },
+  {
+    "combo": "Alt+S",
+    "action": "settings"
+  },
+  {
+    "combo": "Alt+V+C",
+    "action": "C:\\Users\\Deshan\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+  },
+  {
+    "combo": "Alt+D+O",
+    "action": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe"
+  },
+  {
+    "combo": "Alt+P+O",
+    "action": "C:\\Users\\Deshan\\Desktop\\Postman.lnk"
+  },
+  {
+    "combo": "Alt+C+U",
+    "action": "C:\\Users\\Deshan\\Desktop\\Cursor.lnk"
+  }
+]

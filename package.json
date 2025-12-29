@@ -1,0 +1,56 @@
+{
+  "name": "shortcut-launcher",
+  "version": "1.0.2",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.deshan.shortcutlauncher",
+    "productName": "Shortcut Launcher",
+    "asar": true,
+    "files": [
+      "main.js",
+      "renderer/**",
+      "assets/**",
+      "package.json"
+    ],
+    "artifactName": "ShortcutLauncher-${version}-Setup.${ext}",
+    "compression": "maximum",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "YOUR_COMPANY"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": true,
+      "license": "assets/eula.txt",
+      "deleteAppDataOnUninstall": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR_OWNER",
+        "repo": "YOUR_REPO"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  }
+}

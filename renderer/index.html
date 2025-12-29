@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Shortcut Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="app">
+  <h2 class="title">Shortcut Manager</h2>
+  <p class="subtitle">Create, edit, and manage global shortcuts.</p>
+
+  <div id="form" class="card">
+    <div class="field">
+      <input type="text" id="combo" class="input" placeholder="Key combo (Alt+O or Ctrl+Shift+G)">
+    </div>
+    <div class="field selected">
+      <button id="browseBtn" class="btn outline small">Browse…</button>
+      <span id="selectedActionLabel" class="pill action" style="display:none"></span>
+    </div>
+    <div class="actions">
+      <button id="addBtn" class="btn primary">Add</button>
+      <button id="updateBtn" class="btn success" disabled>Update</button>
+      <button id="cancelEditBtn" class="btn ghost" style="display:none">Cancel</button>
+      <small id="editHint" class="muted" style="display:none"></small>
+    </div>
+  </div>
+
+  <div id="status" class="status" aria-live="polite"></div>
+
+  <ul id="shortcutList" class="list"></ul>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

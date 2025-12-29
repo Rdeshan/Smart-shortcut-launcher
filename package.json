@@ -1,56 +1,43 @@
 {
   "name": "shortcut-launcher",
-  "version": "1.0.2",
-  "description": "",
+  "version": "1.0.0",
+  "description": "Boost your productivity with global keyboard shortcuts",
   "main": "main.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron .",
-    "dist": "electron-builder --win --x64"
+  "author": "Ravindu perera",
+  "license": "Commercial",
+  "homepage": "https://yourwebsite.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourcompany/shortcut-launcher"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "electron": "^39.2.7",
-    "electron-builder": "^26.0.12"
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
   },
   "build": {
-    "appId": "com.deshan.shortcutlauncher",
+    "appId": "com.yourcompany.shortcutlauncher",
     "productName": "Shortcut Launcher",
-    "asar": true,
-    "files": [
-      "main.js",
-      "renderer/**",
-      "assets/**",
-      "package.json"
-    ],
-    "artifactName": "ShortcutLauncher-${version}-Setup.${ext}",
-    "compression": "maximum",
     "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "assets/icon.ico",
-      "publisherName": "YOUR_COMPANY"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "runAfterFinish": true,
-      "license": "assets/eula.txt",
-      "deleteAppDataOnUninstall": true
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "YOUR_OWNER",
-        "repo": "YOUR_REPO"
-      }
-    ]
+    "publish": {
+      "provider": "github",
+      "owner": "yourcompany",
+      "repo": "shortcut-launcher"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.1.7"
   }
 }

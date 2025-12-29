@@ -6,11 +6,23 @@
 </head>
 <body class="app">
   <h2 class="title">Shortcut Manager</h2>
-  <p class="subtitle">Create, edit, and manage global shortcuts.</p>
+  <p class="subtitle">Create, edit, and manage global keyboard shortcuts.</p>
+
+  <!-- NEW: Welcome card for first-time users -->
+  <div id="welcomeCard" class="card welcome-card" style="display:none">
+    <h3 class="welcome-title">👋 Welcome to Shortcut Launcher!</h3>
+    <p class="welcome-text">Get started by creating your first shortcut:</p>
+    <ol class="welcome-steps">
+      <li>Click <strong>Browse…</strong> to select an application or file</li>
+      <li>Enter a key combination (e.g., <code>Ctrl+Shift+N</code>)</li>
+      <li>Click <strong>Add</strong> to save your shortcut</li>
+    </ol>
+    <button id="dismissWelcome" class="btn outline small">Got it!</button>
+  </div>
 
   <div id="form" class="card">
     <div class="field">
-      <input type="text" id="combo" class="input" placeholder="Key combo (Alt+O or Ctrl+Shift+G)">
+      <input type="text" id="combo" class="input" placeholder="Key combo (e.g., Ctrl+Shift+N or Alt+V+S)">
     </div>
     <div class="field selected">
       <button id="browseBtn" class="btn outline small">Browse…</button>
@@ -25,6 +37,14 @@
   </div>
 
   <div id="status" class="status" aria-live="polite"></div>
+
+  <!-- NEW: Empty state message -->
+  <div id="emptyState" class="empty-state" style="display:none">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+    </svg>
+    <p>No shortcuts yet. Add your first one above!</p>
+  </div>
 
   <ul id="shortcutList" class="list"></ul>
 

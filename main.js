@@ -20,20 +20,15 @@ if (!gotLock) {
 // Alias commands for quick launch
 const aliasMap = {
   notepad: 'notepad',
-  // open Google directly in the default browser
   google: 'https://www.google.com',
-  whatsapp: 'shell:AppsFolder\\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App',
-  word: 'winword',
-  // NEW: Windows Settings
   settings: 'ms-settings:',
-  // NEW: convenience alias to launch Chrome if available in PATH
-  chrome: 'chrome'
+  chrome: 'chrome',
+  edge: 'msedge',
+  explorer: 'explorer'
 }
-// NEW: built-in shortcuts (skip if user defines same combo)
-const BUILT_IN_SHORTCUTS = [
-  { combo: 'Ctrl+Alt+W', action: { alias: 'whatsapp' } },
-  { combo: 'Ctrl+Alt+G', action: { alias: 'google' } }
-]
+
+// REMOVED: Built-in shortcuts to avoid personal preferences
+const BUILT_IN_SHORTCUTS = []
 
 // Ensure cache/userData are writable to fix "Unable to create cache"
 const appDataRoot = process.env.APPDATA || path.join(process.env.USERPROFILE || process.env.HOME || '', 'AppData', 'Roaming')
@@ -82,7 +77,21 @@ function createWindow() {
   })
 }
 
-// ----------------- Launch Apps Safely -----------------
+// Cache for resolved paths to avoid repeated fs.existsSync calls
+const pathCache = new Map()
+const CACHE_TTL = 60000 // 1 minute
+
+function getCachedPath(target) {
+  const cached = pathCache.get(target)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.exists
+  }
+  const exists = fs.existsSync(target)
+  pathCache.set(target, { exists, timestamp: Date.now() })
+  return exists
+}
+
+// ----------------- Launch Apps Safely (OPTIMIZED) -----------------
 function runAction(action) {
   try {
     // NEW: support structured action with { kind, value } and simple fields
@@ -120,47 +129,117 @@ function runAction(action) {
        /^[a-zA-Z][\w+.-]*:/.test(target) &&
        !/^[a-zA-Z]:[\\/]/.test(target))
     const looksPath = forceKind === 'path' || (typeof target === 'string' && /[\\\/]/.test(target))
-    const exists = looksPath ? fs.existsSync(target) : false
+    const exists = looksPath ? getCachedPath(target) : false
     const ext = exists ? path.extname(target).toLowerCase() : ''
 
-    const launchWithCmd = (arg, quote = true) => {
-      const t = quote ? `"${arg}"` : arg
-      const child = spawn('cmd.exe', ['/c', 'start', '""', t], {
-        windowsVerbatimArguments: true,
-        detached: true,
-        stdio: 'ignore'
+    // OPTIMIZED: Direct shell.openExternal for URLs (fastest)
+    if (isUrl) {
+      shell.openExternal(target).catch(err => {
+        console.error('URL launch error:', target, err)
+        if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
       })
-      child.on('error', (err) => {
-        console.error('Launch error:', arg, err)
-        if (mainWindow) mainWindow.webContents.send('action-error', { action: arg, error: err.message })
-      })
-      try { child.unref() } catch {}
+      return
     }
 
-    if (isUrl) { launchWithCmd(target, true); return }
-    if (isShell || isProtocol) { launchWithCmd(target, false); return }
+    // OPTIMIZED: Direct spawn for shell/protocol URIs
+    if (isShell || isProtocol) {
+      const child = spawn('cmd.exe', ['/c', 'start', '""', target], {
+        windowsVerbatimArguments: true,
+        detached: true,
+        stdio: 'ignore',
+        shell: false
+      })
+      child.on('error', (err) => {
+        console.error('Shell/Protocol launch error:', target, err)
+        if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+      })
+      child.unref()
+      return
+    }
+
+    // OPTIMIZED: Direct execution for .exe files (skip cmd.exe wrapper)
+    if (exists && ext === '.exe') {
+      const child = spawn(target, [], {
+        detached: true,
+        stdio: 'ignore',
+        shell: false
+      })
+      child.on('error', (err) => {
+        console.error('EXE launch error:', target, err)
+        if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+      })
+      child.unref()
+      return
+    }
+
+    // OPTIMIZED: Fast launch for other known file types
     if (exists) {
       switch (ext) {
-        case '.exe': case '.lnk': case '.url': case '.appref-ms': case '.bat': case '.cmd':
-          launchWithCmd(target, true); return
+        case '.lnk':
+        case '.url':
+        case '.appref-ms': {
+          const child = spawn('cmd.exe', ['/c', 'start', '""', `"${target}"`], {
+            windowsVerbatimArguments: true,
+            detached: true,
+            stdio: 'ignore',
+            shell: false
+          })
+          child.on('error', (err) => {
+            console.error('Shortcut launch error:', target, err)
+            if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+          })
+          child.unref()
+          return
+        }
+        case '.bat':
+        case '.cmd': {
+          const child = spawn(target, [], {
+            detached: true,
+            stdio: 'ignore',
+            shell: true
+          })
+          child.on('error', (err) => {
+            console.error('Batch launch error:', target, err)
+            if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+          })
+          child.unref()
+          return
+        }
         case '.ps1': {
-          const ps = spawn('powershell.exe', [
+          const child = spawn('powershell.exe', [
             '-NoProfile', '-ExecutionPolicy', 'Bypass',
-            '-Command', `Start-Process -FilePath '${String(target).replace(/'/g, "''")}'`
-          ], { detached: true, stdio: 'ignore' })
-          ps.on('error', (err) => {
+            '-WindowStyle', 'Hidden',
+            '-Command', `& '${String(target).replace(/'/g, "''")}'`
+          ], { detached: true, stdio: 'ignore', shell: false })
+          child.on('error', (err) => {
             console.error('PowerShell launch error:', target, err)
             if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
           })
-          try { ps.unref() } catch {}
+          child.unref()
           return
         }
-        default: launchWithCmd(target, true); return
+        default: {
+          // Other files - use shell.openPath (faster than cmd.exe)
+          shell.openPath(target).catch(err => {
+            console.error('File launch error:', target, err)
+            if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+          })
+          return
+        }
       }
     }
 
-    if (looksPath) { launchWithCmd(target, true); return }
-    launchWithCmd(String(target), false)
+    // Fallback: try as command or PATH lookup
+    const child = spawn(String(target), [], {
+      detached: true,
+      stdio: 'ignore',
+      shell: true
+    })
+    child.on('error', (err) => {
+      console.error('Command launch error:', target, err)
+      if (mainWindow) mainWindow.webContents.send('action-error', { action: target, error: err.message })
+    })
+    child.unref()
   } catch (e) {
     console.error('runAction error:', e)
     if (mainWindow) mainWindow.webContents.send('action-error', { action, error: e.message })
@@ -241,7 +320,10 @@ function registerBuiltInShortcuts(userShortcuts = []) {
 // NEW: apply both user and built-in shortcuts
 function applyShortcuts(shortcuts) {
   registerShortcuts(shortcuts)
-  registerBuiltInShortcuts(shortcuts)
+  // Only register built-ins if any exist
+  if (BUILT_IN_SHORTCUTS.length > 0) {
+    registerBuiltInShortcuts(shortcuts)
+  }
 }
 
 // ----------------- IPC -----------------
@@ -305,6 +387,7 @@ ipcMain.handle('browse-app', async () => {
 })
 
 // ----------------- Shortcut JSON File -----------------
+
 function getShortcutPath() {
   return path.join(app.getPath('userData'), 'shortcuts.json')
 }
@@ -313,12 +396,8 @@ function ensureShortcutStoreFile() {
   try {
     const p = getShortcutPath()
     if (!fs.existsSync(p)) {
-      // Seed with examples so you can see and use the new "kind" field
-      const sample = [
-        { combo: 'Ctrl+G', action: { kind: 'url', value: 'https://google.com' } },
-        { combo: 'Ctrl+W', action: { kind: 'alias', value: 'whatsapp' } },
-        { combo: 'Ctrl+N', action: 'notepad' } // backwards compatible string
-      ]
+      // CLEAN: Start with empty shortcuts for customers
+      const sample = []
       fs.writeFileSync(p, JSON.stringify(sample, null, 2))
     } else {
       const raw = fs.readFileSync(p, 'utf8')
@@ -354,12 +433,13 @@ function watchShortcutFile() {
 // ----------------- About Dialog -----------------
 // Show a simple About dialog with version info
 function showAbout() {
-  const msg = `Shortcut Launcher\nVersion: ${app.getVersion()}\n\n© YOUR_COMPANY`
+  const msg = `Shortcut Launcher\nVersion: ${app.getVersion()}\n\nBoost your productivity with global keyboard shortcuts.\n\n© ${new Date().getFullYear()} Your Company Name`
   try {
     dialog.showMessageBox(mainWindow || null, {
       type: 'info',
       title: 'About Shortcut Launcher',
-      message: msg
+      message: msg,
+      buttons: ['OK']
     })
   } catch {}
 }
@@ -438,4 +518,7 @@ app.whenReady().then(() => {
 })
 
 // ----------------- Cleanup -----------------
-app.on('will-quit', () => globalShortcut.unregisterAll())
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
+  pathCache.clear() // Clear cache on exit
+})

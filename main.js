@@ -305,6 +305,7 @@ ipcMain.handle('browse-app', async () => {
 })
 
 // ----------------- Shortcut JSON File -----------------
+
 function getShortcutPath() {
   return path.join(app.getPath('userData'), 'shortcuts.json')
 }

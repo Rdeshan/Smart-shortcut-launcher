@@ -8,14 +8,14 @@
   "homepage": "https://yourwebsite.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourcompany/shortcut-launcher"
+    "url": "https://github.com/Rdeshan/Smart-shortcut-launcher.git"
   },
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder"
   },
   "build": {
-    "appId": "com.yourcompany.shortcutlauncher",
+    "appId": "com.Rdeshan.shortcutlauncher",
     "productName": "Shortcut Launcher",
     "win": {
       "target": "nsis",
@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.13.3"
   },
   "dependencies": {
     "electron-updater": "^6.1.7"

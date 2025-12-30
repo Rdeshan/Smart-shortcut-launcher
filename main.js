@@ -21,10 +21,19 @@ if (!gotLock) {
 const aliasMap = {
   notepad: 'notepad',
   google: 'https://www.google.com',
+  gmail: 'https://mail.google.com',
+  github: 'https://www.github.com',
+  youtube: 'https://www.youtube.com',
   settings: 'ms-settings:',
   chrome: 'chrome',
   edge: 'msedge',
-  explorer: 'explorer'
+  explorer: 'explorer',
+  calc: 'calc',
+  calculator: 'calc',
+  // Common Windows Store apps
+  whatsapp: 'shell:AppsFolder\\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App',
+  spotify: 'shell:AppsFolder\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify',
+  netflix: 'shell:AppsFolder\\4DF9E0F8.Netflix_mcm4njqhnhss8!App'
 }
 
 // REMOVED: Built-in shortcuts to avoid personal preferences
@@ -455,36 +464,88 @@ app.whenReady().then(() => {
   }, 3000)
 
   // ===== TRAY =====
-  const iconPath = path.join(__dirname, 'assets', 'icon.ico') // use a .png on mac/linux if available
-  const trayIcon = nativeImage.createFromPath(iconPath)
-  tray = new Tray(trayIcon)
-  tray.setToolTip('Shortcut Launcher')
-  const trayMenu = Menu.buildFromTemplate([
-    { label: 'Open', click: () => mainWindow.show() },
-    // Add manual update and about entries
-    { label: 'Check for Updates', click: () => {
-        try {
-          if (app.isPackaged) {
-            autoUpdater.checkForUpdatesAndNotify()
-          } else {
-            dialog.showMessageBox(mainWindow || null, { type: 'info', message: 'Updates run in packaged builds.' })
-          }
-        } catch {}
+  try {
+    // Try multiple icon paths
+    const iconPaths = [
+      path.join(__dirname, 'assets', 'tray.png'),
+      path.join(__dirname, 'tray.png'),
+      path.join(__dirname, 'assets', 'icon.ico'),
+      path.join(__dirname, 'assets', 'icon.png')
+    ]
+    
+    let trayIcon = null
+    let foundPath = null
+    
+    // Find the first existing icon
+    for (const iconPath of iconPaths) {
+      if (fs.existsSync(iconPath)) {
+        trayIcon = nativeImage.createFromPath(iconPath)
+        if (!trayIcon.isEmpty()) {
+          foundPath = iconPath
+          console.log('Tray icon loaded from:', iconPath)
+          break
+        }
       }
-    },
-    { label: 'About', click: () => showAbout() },
-    { type: 'separator' },
-    { label: 'Edit Shortcuts...', click: () => openShortcutEditor() },
-    { type: 'separator' },
-    { label: 'Exit', click: () => { isQuitting = true; app.quit() } }
-  ])
-  tray.setContextMenu(trayMenu)
+    }
+    
+    // Fallback: Create a simple icon from dataURL
+    if (!trayIcon || trayIcon.isEmpty()) {
+      console.warn('No tray icon found, using fallback')
+      const svg = `<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+        <rect width="16" height="16" rx="3" fill="#3b82f6"/>
+        <text x="8" y="12" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">S</text>
+      </svg>`
+      trayIcon = nativeImage.createFromDataURL('data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64'))
+    }
+    
+    tray = new Tray(trayIcon)
+    tray.setToolTip('Shortcut Launcher')
+    
+    const trayMenu = Menu.buildFromTemplate([
+      { label: 'Open', click: () => { 
+        try { 
+          mainWindow.show() 
+          mainWindow.focus() 
+        } catch (e) {
+          console.error('Failed to show window:', e)
+        }
+      }},
+      { label: 'Check for Updates', click: () => {
+          try {
+            if (app.isPackaged) {
+              autoUpdater.checkForUpdatesAndNotify()
+            } else {
+              dialog.showMessageBox(mainWindow || null, { type: 'info', message: 'Updates run in packaged builds.' })
+            }
+          } catch {}
+        }
+      },
+      { label: 'About', click: () => showAbout() },
+      { type: 'separator' },
+      { label: 'Edit Shortcuts...', click: () => openShortcutEditor() },
+      { type: 'separator' },
+      { label: 'Exit', click: () => { isQuitting = true; app.quit() } }
+    ])
+    tray.setContextMenu(trayMenu)
 
-  // toggle dashboard on tray click
-  tray.on('click', () => {
-    if (mainWindow.isVisible()) mainWindow.hide()
-    else { mainWindow.show(); mainWindow.focus() }
-  })
+    // toggle dashboard on tray click
+    tray.on('click', () => {
+      try {
+        if (mainWindow.isVisible()) {
+          mainWindow.hide()
+        } else {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      } catch (err) {
+        console.error('Tray click error:', err)
+      }
+    })
+    
+    console.log('Tray created successfully')
+  } catch (err) {
+    console.error('Failed to create tray:', err)
+  }
 
   // ===== SHORTCUTS =====
   ensureShortcutStoreFile()

@@ -13,6 +13,12 @@ const { ipcRenderer } = require('electron')
 const statusEl = document.getElementById('status')
 const browseBtn = document.getElementById('browseBtn')
 const selectedActionLabel = document.getElementById('selectedActionLabel')
+const addUrlBtn = document.getElementById('addUrlBtn')
+const urlModal = document.getElementById('urlModal')
+const urlInput = document.getElementById('urlInput')
+const confirmUrl = document.getElementById('confirmUrl')
+const cancelUrl = document.getElementById('cancelUrl')
+const closeModal = document.getElementById('closeModal')
 const welcomeCard = document.getElementById('welcomeCard')
 const dismissWelcome = document.getElementById('dismissWelcome')
 const emptyState = document.getElementById('emptyState')
@@ -96,19 +102,138 @@ function validateCombo(str) {
   return { valid: false, reason: 'Use modifiers + one or two keys (e.g., Alt+O or Alt+V+S).' }
 }
 
+// NEW: Check for chord conflicts - FIXED to check first key only
+function checkChordConflict(newCombo, existingShortcuts, editIndex = null) {
+  const newTokens = newCombo.split('+').filter(Boolean)
+  const modifiers = new Set(['Ctrl','Command','CmdOrCtrl','Alt','Shift','Super'])
+  const newMods = newTokens.filter(t => modifiers.has(t))
+  const newKeys = newTokens.filter(t => !modifiers.has(t))
+
+  if (newKeys.length === 0) return null
+
+  // Create the "first part" - modifiers + first key
+  const newFirstPart = [...newMods, newKeys[0]].join('+')
+
+  for (let i = 0; i < existingShortcuts.length; i++) {
+    if (i === editIndex) continue // Skip the shortcut being edited
+
+    const existing = existingShortcuts[i].combo
+    const existingTokens = existing.split('+').filter(Boolean)
+    const existingMods = existingTokens.filter(t => modifiers.has(t))
+    const existingKeys = existingTokens.filter(t => !modifiers.has(t))
+
+    if (existingKeys.length === 0) continue
+
+    const existingFirstPart = [...existingMods, existingKeys[0]].join('+')
+
+    // Check if first parts match (Alt+C matches Alt+C)
+    if (existingFirstPart === newFirstPart) {
+      // Conflict if: one is single key and other is chord, OR both are chords with different second keys
+      const newIsSingle = newKeys.length === 0
+      const existingIsSingle = existingKeys.length === 1
+      
+      if (newIsSingle && !existingIsSingle) {
+        // New is Alt+C, existing is Alt+C+E
+        return {
+          conflict: true,
+          existing: existingShortcuts[i],
+          firstPart: newFirstPart
+        }
+      } else if (!newIsSingle && existingIsSingle) {
+        // New is Alt+C+E, existing is Alt+C
+        return {
+          conflict: true,
+          existing: existingShortcuts[i],
+          firstPart: newFirstPart
+        }
+      } else if (!newIsSingle && !existingIsSingle) {
+        // Both are chords (Alt+C+E vs Alt+C+X)
+        if (newKeys[1] !== existingKeys[1]) {
+          return {
+            conflict: true,
+            existing: existingShortcuts[i],
+            firstPart: newFirstPart
+          }
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 // Browse → select file and set current action
 browseBtn?.addEventListener('click', async () => {
   try {
     const selected = await ipcRenderer.invoke('browse-app')
     if (selected) {
       currentAction = selected
-      selectedActionLabel.textContent = selected
+      selectedActionLabel.textContent = getActionDisplayName(selected)
       selectedActionLabel.style.display = 'inline-block'
       showMessage('File selected', 'success')
     }
   } catch {
     showMessage('Browse failed', 'error')
   }
+})
+
+// NEW: Add URL/Command button
+addUrlBtn?.addEventListener('click', () => {
+  urlModal.style.display = 'flex'
+  urlInput.value = ''
+  urlInput.focus()
+})
+
+// NEW: Close modal handlers
+const closeUrlModal = () => {
+  urlModal.style.display = 'none'
+  urlInput.value = ''
+}
+
+closeModal?.addEventListener('click', closeUrlModal)
+cancelUrl?.addEventListener('click', closeUrlModal)
+
+// Close modal when clicking outside
+urlModal?.addEventListener('click', (e) => {
+  if (e.target === urlModal) closeUrlModal()
+})
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && urlModal.style.display === 'flex') {
+    closeUrlModal()
+  }
+})
+
+// NEW: Confirm URL/Command
+confirmUrl?.addEventListener('click', () => {
+  const value = urlInput.value.trim()
+  if (!value) {
+    alert('Please enter a URL or command')
+    return
+  }
+
+  currentAction = value
+  selectedActionLabel.textContent = getActionDisplayName(value)
+  selectedActionLabel.style.display = 'inline-block'
+  closeUrlModal()
+  showMessage('URL/Command added', 'success')
+})
+
+// NEW: Enter key in URL input
+urlInput?.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    confirmUrl.click()
+  }
+})
+
+// NEW: Quick link buttons
+document.querySelectorAll('.btn-quick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const url = btn.dataset.url
+    urlInput.value = url
+    confirmUrl.click()
+  })
 })
 
 function setModeEditing(index, item) {
@@ -272,6 +397,13 @@ addBtn.onclick = () => {
   if (data.some(s => normalizeCombo(s.combo) === comboNorm)) {
     return alert('Shortcut already exists. Use Edit.')
   }
+
+  // NEW: Check for chord conflicts
+  const conflict = checkChordConflict(comboNorm, data)
+  if (conflict) {
+    return alert(conflict.message)
+  }
+
   data.push({ combo: comboNorm, action: currentAction })
 
   try {
@@ -299,6 +431,12 @@ updateBtn.onclick = () => {
   let data = JSON.parse(fs.readFileSync(shortcutFile, 'utf8'))
   const dupIdx = data.findIndex((s, i) => i !== editIndex && normalizeCombo(s.combo) === comboNorm)
   if (dupIdx >= 0) return alert('Another shortcut uses this combo.')
+
+  // NEW: Check for chord conflicts
+  const conflict = checkChordConflict(comboNorm, data, editIndex)
+  if (conflict) {
+    return alert(conflict.message)
+  }
 
   data[editIndex] = { combo: comboNorm, action: currentAction }
   try {
@@ -353,3 +491,207 @@ dismissWelcome?.addEventListener('click', () => {
     showMessage('Failed to init storage', 'error')
   }
 })()
+
+// NEW: List of commonly blocked shortcuts by Windows/IDEs
+const BLOCKED_SHORTCUTS = new Set([
+  'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+Z', 'Ctrl+Y', // System clipboard
+  'Ctrl+S', 'Ctrl+O', 'Ctrl+N', 'Ctrl+W', 'Ctrl+T', 'Ctrl+P', // File operations
+  'Alt+Tab', 'Alt+F4', 'Ctrl+Alt+Delete', 'Ctrl+Shift+Esc', // System shortcuts
+  'Ctrl+Esc', 'Win+L', 'Win+D', 'Win+E', // Windows shortcuts
+])
+
+const IDE_SHORTCUTS = {
+  'vscode': new Set(['Ctrl+K', 'Ctrl+P', 'Ctrl+Shift+P', 'Ctrl+B', 'Ctrl+`', 'Ctrl+J']),
+  'intellij': new Set(['Ctrl+Shift+A', 'Ctrl+Shift+F', 'Ctrl+Shift+N', 'Ctrl+F12']),
+  'visualstudio': new Set(['Ctrl+K', 'Ctrl+M', 'Ctrl+R', 'Ctrl+Shift+B']),
+  'eclipse': new Set(['Ctrl+Shift+R', 'Ctrl+Shift+T', 'Ctrl+3']),
+}
+
+// NEW: Check if shortcut is blocked by system or IDE
+function checkBlockedShortcut(combo) {
+  const norm = normalizeCombo(combo)
+  
+  // Check system-blocked shortcuts
+  if (BLOCKED_SHORTCUTS.has(norm)) {
+    return {
+      blocked: true,
+      reason: 'system',
+      message: `${norm} is reserved by Windows and cannot be overridden globally.`
+    }
+  }
+  
+  // Check IDE shortcuts
+  for (const [ide, shortcuts] of Object.entries(IDE_SHORTCUTS)) {
+    if (shortcuts.has(norm)) {
+      return {
+        blocked: true,
+        reason: 'ide',
+        ide: ide,
+        message: `${norm} is commonly used by ${ide.toUpperCase()} and may not work globally when the IDE is active.`
+      }
+    }
+  }
+  
+  return null
+}
+
+// NEW: Real-time chord conflict check as user types
+comboInput?.addEventListener('input', (e) => {
+  const value = e.target.value.trim()
+  
+  // Remove any existing warning
+  const existingWarning = document.querySelector('.chord-warning')
+  if (existingWarning) existingWarning.remove()
+  
+  if (!value) {
+    // Re-enable buttons when input is cleared
+    if (editIndex === null && currentAction) {
+      addBtn.disabled = false
+    } else if (editIndex !== null && currentAction) {
+      updateBtn.disabled = false
+    }
+    return
+  }
+
+  // Normalize and check
+  try {
+    const norm = normalizeCombo(value)
+    const tokens = norm.split('+').filter(Boolean)
+    const modifiers = new Set(['Ctrl','Command','CmdOrCtrl','Alt','Shift','Super'])
+    const mods = tokens.filter(t => modifiers.has(t))
+    const keys = tokens.filter(t => !modifiers.has(t))
+
+    // NEW: Check for blocked shortcuts first
+    const blocked = checkBlockedShortcut(norm)
+    if (blocked) {
+      const warning = document.createElement('div')
+      warning.className = 'chord-warning'
+      
+      let warningContent = ''
+      if (blocked.reason === 'system') {
+        warningContent = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+          <div class="chord-warning-content">
+            <strong>🚫 System-Reserved Shortcut</strong>
+            <p>${blocked.message}</p>
+            <p class="suggestion">💡 Try using Alt or Ctrl+Alt combinations instead (e.g., Alt+${keys[0] || 'G'} or Ctrl+Alt+${keys[0] || 'G'})</p>
+          </div>
+        `
+      } else {
+        warningContent = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <div class="chord-warning-content">
+            <strong>⚠️ IDE Conflict Warning</strong>
+            <p>${blocked.message}</p>
+            <p class="suggestion">💡 Consider using Alt+${keys[0] || 'G'} or Ctrl+Shift+${keys[0] || 'G'} instead</p>
+          </div>
+        `
+      }
+      
+      warning.innerHTML = warningContent
+      comboInput.parentElement.insertAdjacentElement('afterend', warning)
+      
+      // Disable buttons for system-reserved, warn for IDE
+      if (blocked.reason === 'system') {
+        addBtn.disabled = true
+        if (editIndex !== null) updateBtn.disabled = true
+      }
+      
+      return
+    }
+
+    // Check for any combo (single key OR chord) with at least one modifier
+    if (keys.length >= 1 && mods.length >= 1) {
+      ensureShortcutFile()
+      const data = JSON.parse(fs.readFileSync(shortcutFile, 'utf8'))
+      const conflict = checkChordConflict(norm, data, editIndex)
+      
+      if (conflict) {
+        // Show inline warning popup
+        const warning = document.createElement('div')
+        warning.className = 'chord-warning'
+        
+        const existingCombo = conflict.existing.combo
+        const existingName = getActionDisplayName(conflict.existing.action)
+        
+        warning.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <div class="chord-warning-content">
+            <strong>⚠️ Shortcut Conflict!</strong>
+            <p>You already have <code>${existingCombo}</code> for <strong>${existingName}</strong></p>
+            <p>Both use <code>${conflict.firstPart}</code> as the starting keys - only one will work!</p>
+            <p class="suggestion">💡 Try: ${generateAlternative(norm, data)}</p>
+          </div>
+        `
+        
+        // Insert warning after the combo input
+        comboInput.parentElement.insertAdjacentElement('afterend', warning)
+        
+        // Disable add/update buttons
+        addBtn.disabled = true
+        if (editIndex !== null) updateBtn.disabled = true
+      } else {
+        // Re-enable buttons if no conflict and action is selected
+        if (editIndex === null && currentAction) {
+          addBtn.disabled = false
+        } else if (editIndex !== null && currentAction) {
+          updateBtn.disabled = false
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Validation error:', err)
+  }
+})
+
+// NEW: Generate alternative shortcut suggestions
+function generateAlternative(currentCombo, existingShortcuts) {
+  const tokens = currentCombo.split('+').filter(Boolean)
+  const modifiers = new Set(['Ctrl','Command','CmdOrCtrl','Alt','Shift','Super'])
+  const mods = tokens.filter(t => modifiers.has(t))
+  const keys = tokens.filter(t => !modifiers.has(t))
+  
+  if (keys.length === 0) return currentCombo
+  
+  const alternatives = []
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+  
+  // If it's a chord, suggest using different first key
+  if (keys.length === 2) {
+    for (const letter of alphabet) {
+      if (letter === keys[0]) continue
+      const alternative = [...mods, letter, keys[1]].join('+')
+      const conflict = checkChordConflict(alternative, existingShortcuts, null)
+      if (!conflict) {
+        alternatives.push(alternative)
+        if (alternatives.length >= 3) break
+      }
+    }
+  } else {
+    // If it's a single key, suggest adding a second key
+    for (const letter of alphabet) {
+      const alternative = [...mods, keys[0], letter].join('+')
+      const conflict = checkChordConflict(alternative, existingShortcuts, null)
+      if (!conflict) {
+        alternatives.push(alternative)
+        if (alternatives.length >= 3) break
+      }
+    }
+  }
+  
+  return alternatives.length > 0 
+    ? alternatives.join(' <span style="color:#64748b">or</span> ') 
+    : 'use a different key combination'
+}

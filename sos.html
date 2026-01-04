@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Emergency Close</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+    }
+    
+    .sos-container {
+      padding: 30px;
+      border: 3px solid #ff0000;
+      border-radius: 10px;
+      background: rgba(255, 0, 0, 0.1);
+      animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { border-color: #ff0000; }
+      50% { border-color: #ff6666; }
+    }
+    
+    h1 {
+      color: #ff0000;
+      font-size: 48px;
+      margin: 0 0 20px 0;
+      text-shadow: 0 0 10px #ff0000;
+    }
+    
+    p {
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+    
+    .buttons {
+      display: flex;
+      gap: 20px;
+    }
+    
+    button {
+      padding: 15px 40px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .confirm {
+      background: #ff0000;
+      color: white;
+    }
+    
+    .confirm:hover {
+      background: #cc0000;
+      transform: scale(1.05);
+    }
+    
+    .cancel {
+      background: #333;
+      color: white;
+    }
+    
+    .cancel:hover {
+      background: #555;
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="sos-container">
+    <h1>⚠️ SOS ⚠️</h1>
+    <p>Emergency Close All Windows?<br>This will close all open applications!</p>
+    <div class="buttons">
+      <button class="confirm" onclick="confirmClose()">Close All Now</button>
+      <button class="cancel" onclick="cancelClose()">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    const remote = require('electron').remote || require('@electron/remote');
+    
+    function confirmClose() {
+      const { exec } = require('child_process');
+      if (process.platform === 'win32') {
+        exec('taskkill /F /FI "WINDOWTITLE ne Shortcut Launcher" /FI "STATUS eq RUNNING"');
+      } else if (process.platform === 'darwin') {
+        exec('osascript -e "tell application \\"System Events\\" to set visible of every process to false"');
+      }
+      setTimeout(() => {
+        remote.getCurrentWindow().close();
+      }, 500);
+    }
+    
+    function cancelClose() {
+      remote.getCurrentWindow().close();
+    }
+    
+    // ESC key to cancel
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        cancelClose();
+      }
+    });
+  </script>
+</body>
+</html>

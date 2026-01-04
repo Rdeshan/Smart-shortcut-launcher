@@ -1,11 +1,20 @@
-const { app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, dialog, nativeImage, shell } = require('electron')
 const path = require('path')
+
+if (process.env.NODE_ENV !== 'production') {
+  require('electron-reload')(__dirname, {
+    electron: path.join(__dirname, 'node_modules', '.bin', 'electron'),
+    hardResetMethod: 'exit'
+  })
+}
+
+const { app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, dialog, nativeImage, shell, exec } = require('electron')
 const fs = require('fs')
 const { spawn } = require('child_process')
 const { autoUpdater } = require('electron-updater')
 
 let mainWindow, tray
 let isQuitting = false
+let sosWindow = null
 
 // Single instance
 const gotLock = app.requestSingleInstanceLock()
@@ -84,6 +93,10 @@ function createWindow() {
       mainWindow.hide() 
     }
   })
+
+  if (process.env.NODE_ENV !== 'production') {
+    mainWindow.webContents.openDevTools();
+  }
 }
 
 // Cache for resolved paths to avoid repeated fs.existsSync calls
@@ -453,8 +466,49 @@ function showAbout() {
   } catch {}
 }
 
+// ----------------- SOS Window -----------------
+function createSOSWindow() {
+  if (sosWindow) {
+    sosWindow.focus();
+    return;
+  }
+
+  sosWindow = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  sosWindow.loadFile('sos.html');
+  sosWindow.center();
+
+  sosWindow.on('closed', () => {
+    sosWindow = null;
+  });
+}
+
+function closeAllWindows() {
+  if (process.platform === 'win32') {
+    // Windows: Close all windows except this app
+    exec('taskkill /F /FI "WINDOWTITLE ne Shortcut Launcher" /FI "STATUS eq RUNNING"');
+  } else if (process.platform === 'darwin') {
+    // macOS
+    exec('osascript -e "tell application \\"System Events\\" to set visible of every process to false"');
+  }
+  
+  if (sosWindow) {
+    sosWindow.close();
+  }
+}
+
 // ----------------- App Ready -----------------
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow()
   // NEW: fallback – if ready-to-show didn’t fire (renderer error), show anyway
   setTimeout(() => {
@@ -575,6 +629,17 @@ app.whenReady().then(() => {
     autoUpdater.on('error', (err) => {
       if (mainWindow) mainWindow.webContents.send('update-status', `error: ${err.message}`)
     })
+  }
+
+  // Register emergency shortcut
+  globalShortcut.register('CommandOrControl+Shift+Q', () => {
+    createSOSWindow();
+  });
+
+  // Clear cache on dev startup
+  if (process.env.NODE_ENV !== 'production') {
+    const session = mainWindow.webContents.session;
+    await session.clearCache();
   }
 })
 

@@ -231,7 +231,14 @@ urlInput?.addEventListener('keypress', (e) => {
 document.querySelectorAll('.btn-quick').forEach(btn => {
   btn.addEventListener('click', () => {
     const url = btn.dataset.url
+    const combo = btn.dataset.combo
     urlInput.value = url
+    
+    // Auto-fill combo for SOS
+    if (combo) {
+      comboInput.value = combo
+    }
+    
     confirmUrl.click()
   })
 })

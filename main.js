@@ -78,6 +78,20 @@ function createWindow() {
   })
 
   mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'))
+  
+  // NEW: Add dev mode reload shortcut (Ctrl+R)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.control && input.key.toLowerCase() === 'r') {
+      mainWindow.reload()
+      event.preventDefault()
+    }
+    // F12 for DevTools
+    if (input.key === 'F12') {
+      mainWindow.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+  })
+  
   mainWindow.on('close', (e) => { 
     if (!isQuitting) {
       e.preventDefault(); 
